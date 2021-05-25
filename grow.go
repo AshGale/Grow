@@ -9,6 +9,8 @@ import (
 )
 
 const windowWidth, windowHeight int = 800, 600
+
+//const cellSize int = 10
 const light float32 = 3
 const water float32 = 3
 
@@ -69,33 +71,57 @@ type cell struct {
 	//dots [10][10]dot
 }
 
+//------------------------------------end structs
+
+//------------------------------------start random helper functions
+
+func getRandomVegetaion() vegetation {
+
+	ammount := getRandomInt(7, 1)
+
+	var plants []plant
+	for i := 0; i < ammount; i++ {
+		plants = append(plants, getRandomPlant())
+	}
+	fmt.Printf("Creating vegetaion with %d plants \n%v\n", ammount, plants)
+
+	return vegetation{plants, 1}
+}
+
+func getRandomPlant() plant {
+	return plant{position{getRandomInt(9, 0), getRandomInt(9, 0)},
+		getRandomInt(12, 1), float32(getRandomInt(128, 16)), float32(getRandomInt(128, 16))}
+}
+
+func getRandomInt(max, min int) int {
+	//sdl.Delay(1) //was generating the same number
+	time.Sleep(time.Microsecond)
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(max-min) + min
+}
+
+//------------------------------------end random helper functions
+
 func (plant *plant) draw(cell *cell, pixels []byte) {
 
-	setPixle(int(cell.x+plant.x), int(cell.y+plant.y), color{0, 255, 0}, pixels)
+	setPixle(int(cell.x+plant.x), int(cell.y+plant.y), color{255, 255, 255}, pixels)
 
 	if plant.size == 1 {
 		return
 	}
 
-	// if cell.dots[0][0].checked {
-	// }
-
-	//while notFinished -> draw plant
-	//almost a pathfinding algorithm
-	fmt.Printf("drawing plant of size %d at %d,%d\n", plant.size, cell.x+plant.x, cell.x+plant.y)
-
 	var targetX, targetY = cell.x + plant.x, cell.y + plant.y
 
 	for i := 0; i < plant.size; {
-		rand.Seed(time.Now().UnixNano())
-		index := rand.Intn(3-0) + 0
+		index := getRandomInt(3, 0)
 
 		side := sides[index]
+		//todo ensure x , cell.x + cellsize yy''
 		var x, y = targetX + side.x, targetY + side.y
 
-		fmt.Printf("testing pixel at %d,%d = %v\n", x, y, getPixle(x, y, pixels))
+		//fmt.Printf("testing pixel at %d,%d = %v\n", x, y, getPixle(x, y, pixels))
 		if getPixle(x, y, pixels).g != 0 {
-			fmt.Printf("pixel had plant there: %d, %d \n", x, y)
+			//fmt.Printf("pixel had plant there: %d, %d \n", x, y)
 			targetX = x
 			targetY = y
 		} else {
@@ -103,15 +129,6 @@ func (plant *plant) draw(cell *cell, pixels []byte) {
 			setPixle(x, y, color{0, 255, 0}, pixels)
 		}
 	}
-	//rand.Seed(time.Now().UnixNano())
-	//index := rand.Intn(3-0) + 0
-
-	//figure out how to draw a plant that is bigger than 1
-	//directions :=
-
-	//what i want to do here is to have the central pixel drawn, then draw around it randomly
-
-	//setPixle(int(plant.x), int(plant.y), color{0, 255, 0}, pixels)
 }
 
 func (cell *cell) draw(pixels []byte) {
@@ -123,12 +140,16 @@ func (cell *cell) draw(pixels []byte) {
 
 func (cell *cell) update() {
 
+	//here
+
 	//light and water constants for now
 
 	// figure out density
 	//for each plant -> get resources -> photosynthesis -> upkeep
 
 }
+
+//------------------------------------start window interaction functions
 
 func setPixle(x, y int, c color, pixels []byte) {
 	index := (y*windowWidth + x) * 4
@@ -162,7 +183,7 @@ func clearScreen(pixels []byte) {
 }
 
 func main() {
-	//go build -o grow.exe && grow.exe
+
 	fmt.Print("Started Grow\n")
 	//Setup //https://stackoverflow.com/questions/38948418/cross-compiling-hello-world-on-mac-for-android
 	//go get -v github.com/veandco/go-sdl2/sdl@master
@@ -202,13 +223,16 @@ func main() {
 	}
 	defer texture.Destroy()
 
+	rand.Seed(time.Now().UnixNano())
 	pixels := make([]byte, windowHeight*windowWidth*4)
 
-	plants := []plant{{position{4, 4}, 12, 100, 100}, {position{8, 8}, 8, 10, 10}}
-	cell := cell{position{(windowWidth / 2), windowHeight / 2}, ground{water}, vegetation{plants, 1}, sun{light, light}}
+	//------------------------------------end stl2 setup
+	//------------------------------------intitilize variables
 
-	//go build -o red.exe && red.exe
-	//Gameloop
+	cell := getRandomCell(windowWidth/2, windowHeight/2)
+
+	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
+	//------------------------------------Game loop
 	for {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
@@ -225,6 +249,11 @@ func main() {
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
 		renderer.Present()
-		sdl.Delay(1024)
+		//sdl.Delay(1024)
+		sdl.Delay(16)
 	}
+}
+
+func getRandomCell(posX, posY int) cell {
+	return cell{position{posX, posY}, ground{water}, getRandomVegetaion(), sun{light, light}}
 }
