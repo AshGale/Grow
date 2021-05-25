@@ -75,6 +75,10 @@ type cell struct {
 
 //------------------------------------start random helper functions
 
+func getRandomCell(posX, posY int) cell {
+	return cell{position{posX, posY}, ground{water}, getRandomVegetaion(), sun{light, light}}
+}
+
 func getRandomVegetaion() vegetation {
 
 	ammount := getRandomInt(7, 1)
@@ -116,7 +120,7 @@ func (plant *plant) draw(cell *cell, pixels []byte) {
 		index := getRandomInt(3, 0)
 
 		side := sides[index]
-		//todo ensure x , cell.x + cellsize yy''
+		//todo ensure x , cell.x + cellsize yy''? off the scren at least
 		var x, y = targetX + side.x, targetY + side.y
 
 		//fmt.Printf("testing pixel at %d,%d = %v\n", x, y, getPixle(x, y, pixels))
@@ -252,8 +256,4 @@ func main() {
 		//sdl.Delay(1024)
 		sdl.Delay(16)
 	}
-}
-
-func getRandomCell(posX, posY int) cell {
-	return cell{position{posX, posY}, ground{water}, getRandomVegetaion(), sun{light, light}}
 }
