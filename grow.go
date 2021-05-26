@@ -11,8 +11,8 @@ import (
 const windowWidth, windowHeight int = 800, 600
 
 //const cellSize int = 10
-const light float32 = 3
-const water float32 = 3
+const light float32 = 100
+const water float32 = 100
 
 var up = direction{0, -1}
 var down = direction{0, +1}
@@ -81,10 +81,11 @@ func getRandomCell(posX, posY int) cell {
 
 func getRandomVegetaion() vegetation {
 
-	ammount := getRandomInt(7, 1)
+	ammount := getRandomInt(8, 2)
 
 	var plants []plant
 	for i := 0; i < ammount; i++ {
+		//todo add sanity check for if plan is on pixel already and regenerate
 		plants = append(plants, getRandomPlant())
 	}
 	fmt.Printf("Creating vegetaion with %d plants \n%v\n", ammount, plants)
@@ -98,8 +99,7 @@ func getRandomPlant() plant {
 }
 
 func getRandomInt(max, min int) int {
-	//sdl.Delay(1) //was generating the same number
-	time.Sleep(time.Microsecond)
+	time.Sleep(time.Microsecond) //was generating the same number
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min) + min
 }
@@ -139,12 +139,52 @@ func (cell *cell) draw(pixels []byte) {
 	for p := 0; p < len(cell.plants); p++ {
 		cell.plants[p].draw(cell, pixels)
 	}
+	fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants)
+}
 
+func (cell *cell) calculateDesity() {
+	var density int
+	var plants = cell.plants
+	for p := 0; p < len(plants); p++ {
+		density += plants[p].size
+	}
+	cell.density = density
+}
+
+func (plant *plant) update(density int, light float32, humidity *float32) {
+
+	//determine the % of resources this plant gets based on size
+	share := float32(plant.size) / float32(density)
+
+	//calculate the ammount of sunshime recived
+	sunShine := light * float32(share) //not * 100 due to larger light value
+
+	//calculate the ammount of water taken from the cell,
+	absorbedWater := share * *humidity
+	*humidity -= absorbedWater
+	plant.water += absorbedWater
+
+	//fmt.Printf("  > plant%v share:%v energy:%v sunShine:%v water:%v huumidity:%v\n", plant.size, share, plant.energy, sunShine, plant.water, *humidity)
+	if plant.water > sunShine {
+		plant.energy += sunShine
+		plant.water -= sunShine
+	} else {
+		plant.energy += plant.water
+		plant.water = 0
+	}
+
+	//calculate plant upkeep for being alive// seed, flower, growth costs
+	plant.energy -= float32(plant.size)
 }
 
 func (cell *cell) update() {
 
-	//here
+	cell.calculateDesity()
+	cell.humidity += water //todo have sepearte water array for the cells
+
+	for p := 0; p < len(cell.plants); p++ {
+		cell.plants[p].update(cell.density, light, &cell.humidity)
+	}
 
 	//light and water constants for now
 
@@ -204,7 +244,7 @@ func main() {
 	}
 	defer sdl.Quit()
 
-	window, err := sdl.CreateWindow("stl2 PONG Window", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
+	window, err := sdl.CreateWindow("stl2 Grow Window", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
 		int32(windowWidth), int32(windowHeight), sdl.WINDOW_SHOWN)
 
 	if err != nil {
@@ -247,13 +287,13 @@ func main() {
 
 		clearScreen(pixels)
 
-		cell.draw(pixels)
 		cell.update()
+		cell.draw(pixels)
 
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
 		renderer.Present()
-		//sdl.Delay(1024)
-		sdl.Delay(16)
+		sdl.Delay(1024)
+		//sdl.Delay(16)
 	}
 }
