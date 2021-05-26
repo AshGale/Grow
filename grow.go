@@ -11,14 +11,18 @@ import (
 const windowWidth, windowHeight int = 800, 600
 
 //const cellSize int = 10
-const light float32 = 100
-const water float32 = 100
+const light float32 = 50 //default should be 100
+const water float32 = 50 //default should be 100
+const plantStatingWater int = 1
+const plantStantingEnergy int = 20
 
 var up = direction{0, -1}
 var down = direction{0, +1}
 var left = direction{-1, 0}
 var right = direction{+1, 0}
 var sides = []direction{up, down, left, right}
+
+//------------------------------------end Global variables and constants
 
 type direction struct {
 	x, y int
@@ -95,7 +99,7 @@ func getRandomVegetaion() vegetation {
 
 func getRandomPlant() plant {
 	return plant{position{getRandomInt(9, 0), getRandomInt(9, 0)},
-		getRandomInt(12, 1), float32(getRandomInt(128, 16)), float32(getRandomInt(128, 16))}
+		getRandomInt(12, 1), float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0))}
 }
 
 func getRandomInt(max, min int) int {
@@ -105,6 +109,17 @@ func getRandomInt(max, min int) int {
 }
 
 //------------------------------------end random helper functions
+
+func (cell *cell) calculateDesity() {
+	var density int
+	var plants = cell.plants
+	for p := 0; p < len(plants); p++ {
+		density += plants[p].size
+	}
+	cell.density = density
+}
+
+//------------------------------------end calculation functions
 
 func (plant *plant) draw(cell *cell, pixels []byte) {
 
@@ -142,14 +157,7 @@ func (cell *cell) draw(pixels []byte) {
 	fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants)
 }
 
-func (cell *cell) calculateDesity() {
-	var density int
-	var plants = cell.plants
-	for p := 0; p < len(plants); p++ {
-		density += plants[p].size
-	}
-	cell.density = density
-}
+//------------------------------------end draw functions
 
 func (plant *plant) update(density int, light float32, humidity *float32) {
 
@@ -164,7 +172,8 @@ func (plant *plant) update(density int, light float32, humidity *float32) {
 	*humidity -= absorbedWater
 	plant.water += absorbedWater
 
-	//fmt.Printf("  > plant%v share:%v energy:%v sunShine:%v water:%v huumidity:%v\n", plant.size, share, plant.energy, sunShine, plant.water, *humidity)
+	// fmt.Printf("  > plant%v share:%v energy:%v sunShine:%v water:%v huumidity:%v\n",
+	// plant.size, share, plant.energy, sunShine, plant.water, *humidity)
 	if plant.water > sunShine {
 		plant.energy += sunShine
 		plant.water -= sunShine
@@ -173,8 +182,13 @@ func (plant *plant) update(density int, light float32, humidity *float32) {
 		plant.water = 0
 	}
 
+	//here todo, add in the abbility to grow in size<<<<<<<<<<<<<<<<<<<
+
 	//calculate plant upkeep for being alive// seed, flower, growth costs
 	plant.energy -= float32(plant.size)
+	if plant.energy <= 0 {
+		plant.size--
+	}
 }
 
 func (cell *cell) update() {
@@ -186,12 +200,20 @@ func (cell *cell) update() {
 		cell.plants[p].update(cell.density, light, &cell.humidity)
 	}
 
-	//light and water constants for now
-
-	// figure out density
-	//for each plant -> get resources -> photosynthesis -> upkeep
+	for p := 0; p < len(cell.plants); p++ {
+		if cell.plants[p].size <= 0 {
+			if p == (len(cell.plants) - 1) {
+				cell.plants = append(cell.plants[:p], nil...)
+			} else {
+				cell.plants = append(cell.plants[:p], cell.plants[p+1:]...)
+			}
+			p--
+		}
+	}
 
 }
+
+//------------------------------------end update functions
 
 //------------------------------------start window interaction functions
 
@@ -225,6 +247,8 @@ func clearScreen(pixels []byte) {
 		}
 	}
 }
+
+//------------------------------------end window interaction functions
 
 func main() {
 
@@ -293,7 +317,7 @@ func main() {
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
 		renderer.Present()
-		sdl.Delay(1024)
+		sdl.Delay(1024) //wait 1 second
 		//sdl.Delay(16)
 	}
 }
