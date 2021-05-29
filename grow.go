@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -10,17 +11,32 @@ import (
 
 const windowWidth, windowHeight int = 800, 600
 
-//const cellSize int = 10
-const light float32 = 50 //default should be 100
-const water float32 = 50 //default should be 100
-const plantStatingWater int = 1
-const plantStantingEnergy int = 20
+const cellSize int = 100
+const light float32 = 100 //default should be 100
+const water float32 = 100 //default should be 100
+const plantStatingWater int = 100
+const plantStantingEnergy int = 100
+
+var leafTemplate = leaves{1,
+	[]position{
+		{0, 0}, {0, -1}, {0, -2}, {1, -2}, {0, -3}, {0, -4}, {-1, -4}, {0, -5}, {1, -5}, {0, -6},
+		{0, -7}, {-1, -7}, {1, -8}, {2, -6}, {-1, -8}, {-2, -4}, {-3, -3}, {2, -3}, {-3, -5}, {-1, -9},
+		{-2, -10}, {2, -9}, {3, -7}, {3, -10}, {0, -10}, {-3, -11}, {-1, -1}, {-1, -2}, {-1, -3}, {-1, -5},
+		{-1, -6}, {-2, -12}, {-4, -12}, {-2, -9}, {-3, -10}, {1, -7}, {2, -8}, {3, -9}, {2, -11}, {3, -11},
+		{5, -12}, {6, -13}, {1, -12}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+}
 
 var up = direction{0, -1}
 var down = direction{0, +1}
 var left = direction{-1, 0}
 var right = direction{+1, 0}
-var sides = []direction{up, down, left, right}
+
+//var sides = []direction{up, down, left, right}
 
 //------------------------------------end Global variables and constants
 
@@ -42,6 +58,11 @@ type plant struct {
 	energy float32
 	water  float32
 	//growth int
+}
+
+type leaves struct {
+	efficiency float32
+	leaf       []position
 }
 
 type vegetation struct {
@@ -85,7 +106,7 @@ func getRandomCell(posX, posY int) cell {
 
 func getRandomVegetaion() vegetation {
 
-	ammount := getRandomInt(8, 2)
+	ammount := getRandomInt(cellSize/2, 2)
 
 	var plants []plant
 	for i := 0; i < ammount; i++ {
@@ -98,8 +119,8 @@ func getRandomVegetaion() vegetation {
 }
 
 func getRandomPlant() plant {
-	return plant{position{getRandomInt(9, 0), getRandomInt(9, 0)},
-		getRandomInt(12, 1), float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0))}
+	return plant{position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
+		getRandomInt(40, 1), float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0))}
 }
 
 func getRandomInt(max, min int) int {
@@ -121,45 +142,29 @@ func (cell *cell) calculateDesity() {
 
 //------------------------------------end calculation functions
 
-func (plant *plant) draw(cell *cell, pixels []byte) {
+func (plant *plant) draw(cell *cell, pixels []byte, wg *sync.WaitGroup) {
 
-	setPixle(int(cell.x+plant.x), int(cell.y+plant.y), color{255, 255, 255}, pixels)
-
-	if plant.size == 1 {
-		return
+	for i := 0; i < plant.size; i++ {
+		var x, y = cell.x + plant.x + leafTemplate.leaf[i].x, cell.y + plant.y + leafTemplate.leaf[i].y
+		setPixle(x, y, color{0, 255, 0}, pixels)
 	}
-
-	var targetX, targetY = cell.x + plant.x, cell.y + plant.y
-
-	for i := 0; i < plant.size; {
-		index := getRandomInt(3, 0)
-
-		side := sides[index]
-		//todo ensure x , cell.x + cellsize yy''? off the scren at least
-		var x, y = targetX + side.x, targetY + side.y
-
-		//fmt.Printf("testing pixel at %d,%d = %v\n", x, y, getPixle(x, y, pixels))
-		if getPixle(x, y, pixels).g != 0 {
-			//fmt.Printf("pixel had plant there: %d, %d \n", x, y)
-			targetX = x
-			targetY = y
-		} else {
-			i++
-			setPixle(x, y, color{0, 255, 0}, pixels)
-		}
-	}
+	wg.Done()
 }
 
 func (cell *cell) draw(pixels []byte) {
+	var wg sync.WaitGroup
+	wg.Add(len(cell.plants))
+
 	for p := 0; p < len(cell.plants); p++ {
-		cell.plants[p].draw(cell, pixels)
+		cell.plants[p].draw(cell, pixels, &wg)
 	}
-	fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants)
+	wg.Wait()
+	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
 }
 
 //------------------------------------end draw functions
 
-func (plant *plant) update(density int, light float32, humidity *float32) {
+func (plant *plant) update(density int, light float32, humidity *float32, wg *sync.WaitGroup) {
 
 	//determine the % of resources this plant gets based on size
 	share := float32(plant.size) / float32(density)
@@ -188,7 +193,9 @@ func (plant *plant) update(density int, light float32, humidity *float32) {
 	plant.energy -= float32(plant.size)
 	if plant.energy <= 0 {
 		plant.size--
+		plant.energy = 0
 	}
+	wg.Done()
 }
 
 func (cell *cell) update() {
@@ -196,10 +203,14 @@ func (cell *cell) update() {
 	cell.calculateDesity()
 	cell.humidity += water //todo have sepearte water array for the cells
 
-	for p := 0; p < len(cell.plants); p++ {
-		cell.plants[p].update(cell.density, light, &cell.humidity)
-	}
+	var wg sync.WaitGroup
+	wg.Add(len(cell.plants))
 
+	for p := 0; p < len(cell.plants); p++ {
+		cell.plants[p].update(cell.density, light, &cell.humidity, &wg)
+	}
+	wg.Wait()
+	//loop throughall to see if died//could have alive flag instead
 	for p := 0; p < len(cell.plants); p++ {
 		if cell.plants[p].size <= 0 {
 			if p == (len(cell.plants) - 1) {
@@ -227,18 +238,18 @@ func setPixle(x, y int, c color, pixels []byte) {
 	}
 }
 
-func getPixle(x, y int, pixels []byte) color {
-	index := (y*windowWidth + x) * 4
+// func getPixle(x, y int, pixels []byte) color {
+// 	index := (y*windowWidth + x) * 4
 
-	color := color{0, 0, 0}
+// 	color := color{0, 0, 0}
 
-	if index < len(pixels)-4 && index >= 0 {
-		color.r = pixels[index]
-		color.g = pixels[index+1]
-		color.b = pixels[index+2]
-	}
-	return color
-}
+// 	if index < len(pixels)-4 && index >= 0 {
+// 		color.r = pixels[index]
+// 		color.g = pixels[index+1]
+// 		color.b = pixels[index+2]
+// 	}
+// 	return color
+// }
 
 func clearScreen(pixels []byte) {
 	for y := 0; y < windowHeight; y++ {
@@ -317,7 +328,7 @@ func main() {
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
 		renderer.Present()
-		sdl.Delay(1024) //wait 1 second
-		//sdl.Delay(16)
+		//sdl.Delay(1024) //wait 1 second
+		sdl.Delay(16)
 	}
 }
