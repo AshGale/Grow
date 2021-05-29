@@ -16,6 +16,7 @@ const light float32 = 100 //default should be 100
 const water float32 = 100 //default should be 100
 const plantStatingWater int = 100
 const plantStantingEnergy int = 100
+const cellStartingPlants = 10
 
 var leafTemplate = leaves{1,
 	[]position{
@@ -28,7 +29,18 @@ var leafTemplate = leaves{1,
 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+	},
+}
+
+var growthTemplate = growth{
+	[]int{
+		1, 4, 8, 12, 16, 21, 28, 35, 42, 50,
+		59, 67, 75, 84, 93, 103, 113, 125, 136, 148,
+		162, 185, 199, 214, 229, 244, 260, 276, 293, 310,
+		328, 346, 364, 383, 402, 422, 442, 463, 484, 505,
+		527, 549, 573, 597, 10000,
+	},
 }
 
 var up = direction{0, -1}
@@ -57,7 +69,12 @@ type plant struct {
 	size   int
 	energy float32
 	water  float32
-	//growth int
+	growAt int //size+1 at energy
+	//growth
+}
+
+type growth struct {
+	growthStages []int
 }
 
 type leaves struct {
@@ -106,7 +123,7 @@ func getRandomCell(posX, posY int) cell {
 
 func getRandomVegetaion() vegetation {
 
-	ammount := getRandomInt(cellSize/2, 2)
+	ammount := getRandomInt(cellStartingPlants, 1)
 
 	var plants []plant
 	for i := 0; i < ammount; i++ {
@@ -119,8 +136,10 @@ func getRandomVegetaion() vegetation {
 }
 
 func getRandomPlant() plant {
+	randomSize := getRandomInt(15, 1)
 	return plant{position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
-		getRandomInt(40, 1), float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0))}
+		randomSize, float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0)),
+		growthTemplate.growthStages[randomSize]}
 }
 
 func getRandomInt(max, min int) int {
@@ -159,18 +178,18 @@ func (cell *cell) draw(pixels []byte) {
 		cell.plants[p].draw(cell, pixels, &wg)
 	}
 	wg.Wait()
-	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
+	fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
 }
 
 //------------------------------------end draw functions
 
-func (plant *plant) update(density int, light float32, humidity *float32, wg *sync.WaitGroup) {
+func (plant *plant) update(density int, light, humidity *float32, wg *sync.WaitGroup) {
 
 	//determine the % of resources this plant gets based on size
 	share := float32(plant.size) / float32(density)
 
 	//calculate the ammount of sunshime recived
-	sunShine := light * float32(share) //not * 100 due to larger light value
+	sunShine := *light * float32(share) //not * 100 due to larger light value
 
 	//calculate the ammount of water taken from the cell,
 	absorbedWater := share * *humidity
@@ -187,13 +206,15 @@ func (plant *plant) update(density int, light float32, humidity *float32, wg *sy
 		plant.water = 0
 	}
 
-	//here todo, add in the abbility to grow in size<<<<<<<<<<<<<<<<<<<
-
 	//calculate plant upkeep for being alive// seed, flower, growth costs
 	plant.energy -= float32(plant.size)
 	if plant.energy <= 0 {
 		plant.size--
 		plant.energy = 0
+	} else if plant.energy >= float32(plant.growAt) {
+		plant.energy -= float32(plant.growAt)
+		plant.size++
+		plant.growAt = growthTemplate.growthStages[plant.size]
 	}
 	wg.Done()
 }
@@ -201,13 +222,14 @@ func (plant *plant) update(density int, light float32, humidity *float32, wg *sy
 func (cell *cell) update() {
 
 	cell.calculateDesity()
-	cell.humidity += water //todo have sepearte water array for the cells
+	cell.humidity += float32(getRandomInt(int(water), 0)) //todo have sepearte water array for the cells
+	cell.sun.energy = float32(getRandomInt(int(light), 0))
 
 	var wg sync.WaitGroup
 	wg.Add(len(cell.plants))
 
 	for p := 0; p < len(cell.plants); p++ {
-		cell.plants[p].update(cell.density, light, &cell.humidity, &wg)
+		cell.plants[p].update(cell.density, &cell.sun.energy, &cell.humidity, &wg)
 	}
 	wg.Wait()
 	//loop throughall to see if died//could have alive flag instead
