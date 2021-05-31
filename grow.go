@@ -9,9 +9,11 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const windowWidth, windowHeight int = 800, 600
+const windowWidth, windowHeight int = 180, 180
 
 const cellSize int = 10
+const cellsX int = 16
+const cellsY int = 16
 const lightAmmount float32 = 100 //default should be 100
 const waterAmmount float32 = 100 //default should be 100
 const plantStatingWater int = 100
@@ -145,6 +147,19 @@ type cell struct {
 
 //------------------------------------start random helper functions
 
+func setUpCells(cells *[]cell) {
+	var cellNumber = 0
+	for y := 0; y < cellsY; y++ {
+		for x := 0; x < cellsX; x++ {
+			var posX, posY = (x * cellSize) + cellSize, (y * cellSize) + cellSize
+			cell := getRandomCell(posX, posY)
+			*cells = append(*cells, cell)
+			fmt.Printf("setting up cell %v of %v}\n", cellNumber, cellsX*cellsY)
+			cellNumber++
+		}
+	}
+}
+
 func getRandomCell(posX, posY int) cell {
 	return cell{position{posX, posY}, ground{waterAmmount}, getRandomVegetaion(), sun{lightAmmount, lightAmmount}}
 }
@@ -158,7 +173,7 @@ func getRandomVegetaion() vegetation {
 		//todo add sanity check for if plan is on pixel already and regenerate
 		plants = append(plants, getRandomPlant())
 	}
-	fmt.Printf("Creating vegetaion with %d plants \n%v\n", ammount, plants)
+	//fmt.Printf("Creating vegetaion with %d plants \n%v\n", ammount, plants)
 
 	return vegetation{plants, 1}
 }
@@ -213,7 +228,7 @@ func (plant *plant) draw(cell *cell, pixels []byte, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (cell *cell) draw(pixels []byte) {
+func (cell *cell) draw(pixels []byte, mainLoop *sync.WaitGroup) {
 	var wg sync.WaitGroup
 	wg.Add(len(cell.plants))
 
@@ -222,6 +237,7 @@ func (cell *cell) draw(pixels []byte) {
 	}
 	wg.Wait()
 	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
+	mainLoop.Done()
 }
 
 //------------------------------------end draw functions
@@ -275,7 +291,7 @@ func (plant *plant) update(density int, light, humidity *float32, wg *sync.WaitG
 	wg.Done()
 }
 
-func (cell *cell) update() {
+func (cell *cell) update(mainLoop *sync.WaitGroup) {
 
 	cell.calculateDesity()
 	cell.humidity += float32(getRandomInt(int(waterAmmount), 0)) //todo have sepearte water array for the cells
@@ -299,7 +315,7 @@ func (cell *cell) update() {
 			p--
 		}
 	}
-
+	mainLoop.Done()
 }
 
 //------------------------------------end update functions
@@ -329,10 +345,10 @@ func setPixle(x, y int, c color, pixels []byte) {
 // 	return color
 // }
 
-func clearScreen(pixels []byte) {
+func clearScreen(pixels []byte, color color) {
 	for y := 0; y < windowHeight; y++ {
 		for x := 0; x < windowWidth; x++ {
-			setPixle(x, y, color{0, 0, 0}, pixels)
+			setPixle(x, y, color, pixels)
 		}
 	}
 }
@@ -385,8 +401,8 @@ func main() {
 
 	//------------------------------------end stl2 setup
 	//------------------------------------intitilize variables
-
-	cell := getRandomCell(windowWidth/2, windowHeight/2)
+	var cells []cell
+	setUpCells(&cells)
 
 	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
 	//------------------------------------Game loop
@@ -398,10 +414,16 @@ func main() {
 			}
 		}
 
-		clearScreen(pixels)
+		clearScreen(pixels, color{25, 12, 8})
 
-		cell.update()
-		cell.draw(pixels)
+		var mainLoop sync.WaitGroup
+		mainLoop.Add(len(cells) * 2)
+
+		for c := range cells {
+			cells[c].update(&mainLoop)
+			cells[c].draw(pixels, &mainLoop)
+		}
+		mainLoop.Wait()
 
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
