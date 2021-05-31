@@ -11,14 +11,19 @@ import (
 
 const windowWidth, windowHeight int = 800, 600
 
-const cellSize int = 100
-const light float32 = 100 //default should be 100
-const water float32 = 100 //default should be 100
+const cellSize int = 10
+const lightAmmount float32 = 100 //default should be 100
+const waterAmmount float32 = 100 //default should be 100
 const plantStatingWater int = 100
 const plantStantingEnergy int = 100
+const plantMaxWater int = 1000
+const plantMaxEnergy int = 1000
 const cellStartingPlants = 10
 
-var leafTemplate = leaves{1,
+//export this to a json file at some stage, or csv ect
+var plantIndexCounter Counter = Counter{1}
+
+var leafTemplate = plantBody{1,
 	[]position{
 		{0, 0}, {0, -1}, {0, -2}, {1, -2}, {0, -3}, {0, -4}, {-1, -4}, {0, -5}, {1, -5}, {0, -6},
 		{0, -7}, {-1, -7}, {1, -8}, {2, -6}, {-1, -8}, {-2, -4}, {-3, -3}, {2, -3}, {-3, -5}, {-1, -9},
@@ -33,7 +38,8 @@ var leafTemplate = leaves{1,
 	},
 }
 
-var growthTemplate = growth{
+//export this to a json file at some stage, or csv ect
+var growthTemplate = growth{1,
 	[]int{
 		1, 4, 8, 12, 16, 21, 28, 35, 42, 50,
 		59, 67, 75, 84, 93, 103, 113, 125, 136, 148,
@@ -51,6 +57,9 @@ var right = direction{+1, 0}
 //var sides = []direction{up, down, left, right}
 
 //------------------------------------end Global variables and constants
+type Counter struct {
+	count int
+}
 
 type direction struct {
 	x, y int
@@ -65,21 +74,28 @@ type position struct {
 }
 
 type plant struct {
+	index int
 	position
-	size   int
-	energy float32
-	water  float32
-	growAt int //size+1 at energy
-	//growth
+	size          int
+	energy        energy
+	water         water
+	growAt        int //size+1 at energy
+	growthPattern int
 }
 
 type growth struct {
+	pattern      int
 	growthStages []int
 }
 
-type leaves struct {
+type plantBody struct {
 	efficiency float32
-	leaf       []position
+	part       []position //todo update to stuct
+}
+
+type plantPart struct {
+	position
+	color
 }
 
 type vegetation struct {
@@ -92,6 +108,18 @@ type ground struct {
 	//catagory int
 	//fertility float32
 	//tempreture int
+}
+
+type water struct {
+	ObtainingMultiplyer float32
+	ammount             float32
+	maximum             int
+}
+
+type energy struct {
+	ObtainingMultiplyer float32
+	ammount             float32
+	maximum             int
 }
 
 type sun struct {
@@ -118,7 +146,7 @@ type cell struct {
 //------------------------------------start random helper functions
 
 func getRandomCell(posX, posY int) cell {
-	return cell{position{posX, posY}, ground{water}, getRandomVegetaion(), sun{light, light}}
+	return cell{position{posX, posY}, ground{waterAmmount}, getRandomVegetaion(), sun{lightAmmount, lightAmmount}}
 }
 
 func getRandomVegetaion() vegetation {
@@ -136,10 +164,12 @@ func getRandomVegetaion() vegetation {
 }
 
 func getRandomPlant() plant {
+	//NOTE not threadsafe due to index tracker
 	randomSize := getRandomInt(15, 1)
-	return plant{position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
-		randomSize, float32(getRandomInt(plantStantingEnergy, 0)), float32(getRandomInt(plantStatingWater, 0)),
-		growthTemplate.growthStages[randomSize]}
+	water := water{1, float32(getRandomInt(plantStatingWater, 0)), plantMaxWater}
+	energy := energy{1, float32(getRandomInt(plantStantingEnergy, 0)), plantMaxEnergy}
+	return plant{plantIndexCounter.next(), position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
+		randomSize, energy, water, growthTemplate.growthStages[randomSize], 1}
 }
 
 func getRandomInt(max, min int) int {
@@ -148,7 +178,20 @@ func getRandomInt(max, min int) int {
 	return rand.Intn(max-min) + min
 }
 
-//------------------------------------end random helper functions
+//------------------------------------end helper functions
+
+func (counter *Counter) currentValue() int {
+	return counter.count
+}
+
+func (counter *Counter) increment() {
+	counter.count += 1
+}
+
+func (counter *Counter) next() int {
+	counter.increment()
+	return counter.currentValue()
+}
 
 func (cell *cell) calculateDesity() {
 	var density int
@@ -164,7 +207,7 @@ func (cell *cell) calculateDesity() {
 func (plant *plant) draw(cell *cell, pixels []byte, wg *sync.WaitGroup) {
 
 	for i := 0; i < plant.size; i++ {
-		var x, y = cell.x + plant.x + leafTemplate.leaf[i].x, cell.y + plant.y + leafTemplate.leaf[i].y
+		var x, y = cell.x + plant.x + leafTemplate.part[i].x, cell.y + plant.y + leafTemplate.part[i].y
 		setPixle(x, y, color{0, 255, 0}, pixels)
 	}
 	wg.Done()
@@ -178,7 +221,7 @@ func (cell *cell) draw(pixels []byte) {
 		cell.plants[p].draw(cell, pixels, &wg)
 	}
 	wg.Wait()
-	fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
+	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
 }
 
 //------------------------------------end draw functions
@@ -189,32 +232,45 @@ func (plant *plant) update(density int, light, humidity *float32, wg *sync.WaitG
 	share := float32(plant.size) / float32(density)
 
 	//calculate the ammount of sunshime recived
-	sunShine := *light * float32(share) //not * 100 due to larger light value
+	sunShine := *light * float32(share) * plant.energy.ObtainingMultiplyer //not * 100 due to larger light value
 
 	//calculate the ammount of water taken from the cell,
-	absorbedWater := share * *humidity
-	*humidity -= absorbedWater
-	plant.water += absorbedWater
+	absorbedWater := share * *humidity * plant.water.ObtainingMultiplyer
 
-	// fmt.Printf("  > plant%v share:%v energy:%v sunShine:%v water:%v huumidity:%v\n",
-	// plant.size, share, plant.energy, sunShine, plant.water, *humidity)
-	if plant.water > sunShine {
-		plant.energy += sunShine
-		plant.water -= sunShine
+	//logic to apply the water to the plant
+	if (plant.water.ammount + absorbedWater) > float32(plant.water.maximum) {
+		//only take enough to max out plant water
+		*humidity -= (float32(plant.water.maximum) - plant.water.ammount)
+		plant.water.ammount = float32(plant.water.maximum)
 	} else {
-		plant.energy += plant.water
-		plant.water = 0
+		*humidity -= absorbedWater
+		plant.water.ammount += absorbedWater
+	}
+
+	//logic to apply the sunshine and energy to the plant
+	if plant.water.ammount > sunShine {
+		if plant.energy.ammount+sunShine > float32(plant.energy.maximum) {
+			plant.water.ammount -= float32(plant.energy.maximum - int(plant.energy.ammount))
+			plant.energy.ammount = float32(plant.energy.maximum)
+		} else {
+			plant.energy.ammount += sunShine
+			plant.water.ammount -= sunShine
+		}
+
+	} else {
+		plant.energy.ammount += plant.water.ammount
+		plant.water.ammount = 0
 	}
 
 	//calculate plant upkeep for being alive// seed, flower, growth costs
-	plant.energy -= float32(plant.size)
-	if plant.energy <= 0 {
+	plant.energy.ammount -= float32(plant.size)
+	if plant.energy.ammount <= 0 {
 		plant.size--
-		plant.energy = 0
-	} else if plant.energy >= float32(plant.growAt) {
-		plant.energy -= float32(plant.growAt)
+		plant.energy.ammount = 0
+	} else if plant.energy.ammount >= float32(plant.growAt) {
+		plant.energy.ammount -= float32(plant.growAt)
 		plant.size++
-		plant.growAt = growthTemplate.growthStages[plant.size]
+		plant.growAt = growthTemplate.growthStages[plant.size] //todo reference growthPattern
 	}
 	wg.Done()
 }
@@ -222,8 +278,8 @@ func (plant *plant) update(density int, light, humidity *float32, wg *sync.WaitG
 func (cell *cell) update() {
 
 	cell.calculateDesity()
-	cell.humidity += float32(getRandomInt(int(water), 0)) //todo have sepearte water array for the cells
-	cell.sun.energy = float32(getRandomInt(int(light), 0))
+	cell.humidity += float32(getRandomInt(int(waterAmmount), 0)) //todo have sepearte water array for the cells
+	cell.sun.energy = float32(getRandomInt(int(lightAmmount), 0))
 
 	var wg sync.WaitGroup
 	wg.Add(len(cell.plants))
