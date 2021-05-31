@@ -9,13 +9,13 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const windowWidth, windowHeight int = 180, 180
+const windowWidth, windowHeight int = 340, 340
 
 const cellSize int = 10
-const cellsX int = 16
-const cellsY int = 16
+const cellsX int = 32
+const cellsY int = 32
 const lightAmmount float32 = 100 //default should be 100
-const waterAmmount float32 = 100 //default should be 100
+const waterAmmount float32 = 35  //default should be 100
 const plantStatingWater int = 100
 const plantStantingEnergy int = 100
 const plantMaxWater int = 1000
@@ -148,16 +148,26 @@ type cell struct {
 //------------------------------------start random helper functions
 
 func setUpCells(cells *[]cell) {
+	var wg sync.WaitGroup
+
+	wg.Add(cellsY * cellsX)
 	var cellNumber = 0
 	for y := 0; y < cellsY; y++ {
 		for x := 0; x < cellsX; x++ {
 			var posX, posY = (x * cellSize) + cellSize, (y * cellSize) + cellSize
-			cell := getRandomCell(posX, posY)
-			*cells = append(*cells, cell)
+			go addCellToCell(posX, posY, cells, &wg)
 			fmt.Printf("setting up cell %v of %v}\n", cellNumber, cellsX*cellsY)
 			cellNumber++
 		}
 	}
+	fmt.Printf("Finalizing...\n")
+	wg.Wait()
+}
+
+func addCellToCell(posX, posY int, cells *[]cell, wg *sync.WaitGroup) {
+	cell := getRandomCell(posX, posY)
+	*cells = append(*cells, cell)
+	wg.Done()
 }
 
 func getRandomCell(posX, posY int) cell {
@@ -233,7 +243,7 @@ func (cell *cell) draw(pixels []byte, mainLoop *sync.WaitGroup) {
 	wg.Add(len(cell.plants))
 
 	for p := 0; p < len(cell.plants); p++ {
-		cell.plants[p].draw(cell, pixels, &wg)
+		go cell.plants[p].draw(cell, pixels, &wg)
 	}
 	wg.Wait()
 	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
@@ -301,7 +311,7 @@ func (cell *cell) update(mainLoop *sync.WaitGroup) {
 	wg.Add(len(cell.plants))
 
 	for p := 0; p < len(cell.plants); p++ {
-		cell.plants[p].update(cell.density, &cell.sun.energy, &cell.humidity, &wg)
+		go cell.plants[p].update(cell.density, &cell.sun.energy, &cell.humidity, &wg)
 	}
 	wg.Wait()
 	//loop throughall to see if died//could have alive flag instead
@@ -403,7 +413,7 @@ func main() {
 	//------------------------------------intitilize variables
 	var cells []cell
 	setUpCells(&cells)
-
+	fmt.Println("Setup Done ... \nStart game loop ")
 	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
 	//------------------------------------Game loop
 	for {
@@ -420,8 +430,8 @@ func main() {
 		mainLoop.Add(len(cells) * 2)
 
 		for c := range cells {
-			cells[c].update(&mainLoop)
-			cells[c].draw(pixels, &mainLoop)
+			go cells[c].update(&mainLoop)
+			go cells[c].draw(pixels, &mainLoop)
 		}
 		mainLoop.Wait()
 
