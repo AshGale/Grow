@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"sync"
 	"time"
@@ -14,8 +16,8 @@ const windowWidth, windowHeight int = 340, 340
 const cellSize int = 10
 const cellsX int = 32
 const cellsY int = 32
-const lightAmmount float32 = 100 //default should be 100
-const waterAmmount float32 = 35  //default should be 100
+const lightAmmount float32 = 500 //default should be 100
+const waterAmmount float32 = 500 //default should be 100
 const plantStatingWater int = 100
 const plantStantingEnergy int = 100
 const plantMaxWater int = 1000
@@ -23,22 +25,31 @@ const plantMaxEnergy int = 1000
 const cellStartingPlants = 10
 
 //export this to a json file at some stage, or csv ect
-var plantIndexCounter Counter = Counter{1}
+var plantIndexCounter Counter = Counter{0}
+var plantColor Color = Color{0, 128, 0}
 
-var leafTemplate = plantBody{1,
-	[]position{
-		{0, 0}, {0, -1}, {0, -2}, {1, -2}, {0, -3}, {0, -4}, {-1, -4}, {0, -5}, {1, -5}, {0, -6},
-		{0, -7}, {-1, -7}, {1, -8}, {2, -6}, {-1, -8}, {-2, -4}, {-3, -3}, {2, -3}, {-3, -5}, {-1, -9},
-		{-2, -10}, {2, -9}, {3, -7}, {3, -10}, {0, -10}, {-3, -11}, {-1, -1}, {-1, -2}, {-1, -3}, {-1, -5},
-		{-1, -6}, {-2, -12}, {-4, -12}, {-2, -9}, {-3, -10}, {1, -7}, {2, -8}, {3, -9}, {2, -11}, {3, -11},
-		{5, -12}, {6, -13}, {1, -12}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
-	},
-}
+var leafShapes [][]Point
+
+// var plantBodyTemplate = plantBody {1,
+// 	[]plantPart{
+// 		{at{0, 0},clr{0,255,0}}, {at{0, -1},clr{0,255,0}}, {at{0, -2},clr{0,255,0}}, {at{1, -2},clr{0,255,0}}, {at{0, -3},clr{0,255,0}}, {at{0, -4},clr{0,255,0}}, {at{-1, -4},clr{0,255,0}},
+// 	},
+// }
+
+// var leafTemplate = plantBody{1,
+// 	[]Position{
+// 		{0, 0}, {0, -1}, {0, -2}, {1, -2}, {0, -3}, {0, -4}, {-1, -4}, {0, -5}, {1, -5}, {0, -6},
+// 		{0, -7}, {-1, -7}, {1, -8}, {2, -6}, {-1, -8}, {-2, -4}, {-3, -3}, {2, -3}, {-3, -5}, {-1, -9},
+// 		{-2, -10}, {2, -9}, {3, -7}, {3, -10}, {0, -10}, {-3, -11}, {-1, -1}, {-1, -2}, {-1, -3}, {-1, -5},
+// 		{-1, -6}, {-2, -12}, {-4, -12}, {-2, -9}, {-3, -10}, {1, -7}, {2, -8}, {3, -9}, {2, -11}, {3, -11},
+// 		{5, -12}, {6, -13}, {1, -12}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 		{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+// 	},
+// }
 
 //export this to a json file at some stage, or csv ect
 var growthTemplate = growth{1,
@@ -60,73 +71,100 @@ var right = direction{+1, 0}
 
 //------------------------------------end Global variables and constants
 type Counter struct {
-	count int
+	Count int
 }
 
 type direction struct {
 	x, y int
 }
 
-type color struct {
-	r, g, b byte
+type Color struct {
+	R, G, B byte
 }
 
-type position struct {
-	x, y int
+type Position struct {
+	X int
+	Y int
 }
 
-type plant struct {
-	index int
-	position
-	size          int
-	energy        energy
-	water         water
-	growAt        int //size+1 at energy
-	growthPattern int
+type Plant struct {
+	Index int
+	Position
+	Mass   int
+	Energy Energy
+	Water  Water
+	GrowAt int
+	Parts  []PlantPart //a plant will be made up a bunch of different parts
 }
+
+//plant part will take water from plant
+type PlantPart struct {
+	Mass int //determined by shape
+	Position
+	Shape int //there will be a set of different shapes
+	Requirement
+	//need variable to determine how much water it can transfer
+	Leafs []Leaf
+}
+
+//leafs will take water from the parent plant part
+type Leaf struct {
+	Mass int
+	Position
+	GrowAt int //keep track of how much ener
+	Shape  int //what groth template to use
+}
+
+type Point struct {
+	color Color
+	Position
+}
+
+/*
+	plant
+		plant part
+			leaves
+		roots
+
+*/
 
 type growth struct {
 	pattern      int
 	growthStages []int
 }
 
-type plantBody struct {
-	efficiency float32
-	part       []position //todo update to stuct
+type Vegetation struct {
+	Plants  []Plant
+	Density int
 }
 
-type plantPart struct {
-	position
-	color
-}
-
-type vegetation struct {
-	plants  []plant
-	density int
-}
-
-type ground struct {
-	humidity float32
+type Ground struct {
+	Humidity float32
 	//catagory int
 	//fertility float32
 	//tempreture int
 }
 
-type water struct {
-	ObtainingMultiplyer float32
-	ammount             float32
-	maximum             int
+type Requirement struct {
+	Waterneeded  int //negative number ?
+	EnergyNeeded int
 }
 
-type energy struct {
+type Water struct {
 	ObtainingMultiplyer float32
-	ammount             float32
-	maximum             int
+	Ammount             float32
+	Maximum             int
 }
 
-type sun struct {
-	intensity float32
-	energy    float32
+type Energy struct {
+	ObtainingMultiplyer float32
+	Ammount             float32
+	Maximum             int
+}
+
+type Sun struct {
+	Intensity float32
+	Energy    float32
 	//heat int
 }
 
@@ -135,11 +173,11 @@ type sun struct {
 // 	checked bool `default:false`
 // }
 
-type cell struct {
-	position
-	ground
-	vegetation
-	sun sun
+type Cell struct {
+	Position
+	Ground
+	Vegetation
+	Sun Sun
 	//dots [10][10]dot
 }
 
@@ -147,7 +185,7 @@ type cell struct {
 
 //------------------------------------start random helper functions
 
-func setUpCells(cells *[]cell) {
+func setUpCells(cells *[]Cell) {
 	var wg sync.WaitGroup
 
 	wg.Add(cellsY * cellsX)
@@ -164,37 +202,37 @@ func setUpCells(cells *[]cell) {
 	wg.Wait()
 }
 
-func addCellToCell(posX, posY int, cells *[]cell, wg *sync.WaitGroup) {
+func addCellToCell(posX, posY int, cells *[]Cell, wg *sync.WaitGroup) {
 	cell := getRandomCell(posX, posY)
 	*cells = append(*cells, cell)
 	wg.Done()
 }
 
-func getRandomCell(posX, posY int) cell {
-	return cell{position{posX, posY}, ground{waterAmmount}, getRandomVegetaion(), sun{lightAmmount, lightAmmount}}
+func getRandomCell(posX, posY int) Cell {
+	return Cell{Position{posX, posY}, Ground{waterAmmount}, getRandomVegetaion(), Sun{lightAmmount, lightAmmount}}
 }
 
-func getRandomVegetaion() vegetation {
+func getRandomVegetaion() Vegetation {
 
 	ammount := getRandomInt(cellStartingPlants, 1)
 
-	var plants []plant
+	var plants []Plant
 	for i := 0; i < ammount; i++ {
 		//todo add sanity check for if plan is on pixel already and regenerate
 		plants = append(plants, getRandomPlant())
 	}
 	//fmt.Printf("Creating vegetaion with %d plants \n%v\n", ammount, plants)
 
-	return vegetation{plants, 1}
+	return Vegetation{plants, 1}
 }
 
-func getRandomPlant() plant {
+func getRandomPlant() Plant {
 	//NOTE not threadsafe due to index tracker
 	randomSize := getRandomInt(15, 1)
-	water := water{1, float32(getRandomInt(plantStatingWater, 0)), plantMaxWater}
-	energy := energy{1, float32(getRandomInt(plantStantingEnergy, 0)), plantMaxEnergy}
-	return plant{plantIndexCounter.next(), position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
-		randomSize, energy, water, growthTemplate.growthStages[randomSize], 1}
+	water := Water{1, float32(getRandomInt(plantStatingWater, 0)), plantMaxWater}
+	energy := Energy{1, float32(getRandomInt(plantStantingEnergy, 0)), plantMaxEnergy}
+	return Plant{plantIndexCounter.next(), Position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
+		randomSize, energy, water, 1, []PlantPart{}}
 }
 
 func getRandomInt(max, min int) int {
@@ -206,11 +244,11 @@ func getRandomInt(max, min int) int {
 //------------------------------------end helper functions
 
 func (counter *Counter) currentValue() int {
-	return counter.count
+	return counter.Count
 }
 
 func (counter *Counter) increment() {
-	counter.count += 1
+	counter.Count += 1
 }
 
 func (counter *Counter) next() int {
@@ -218,127 +256,146 @@ func (counter *Counter) next() int {
 	return counter.currentValue()
 }
 
-func (cell *cell) calculateDesity() {
+func (cell *Cell) calculateDesity() {
 	var density int
-	var plants = cell.plants
+	var plants = cell.Plants
 	for p := 0; p < len(plants); p++ {
-		density += plants[p].size
+		density += plants[p].Mass
 	}
-	cell.density = density
+	cell.Density = density
 }
 
 //------------------------------------end calculation functions
 
-func (plant *plant) draw(cell *cell, pixels []byte, wg *sync.WaitGroup) {
+func (plant *Plant) draw(cell *Cell, pixels *[]byte) {
+	var plantGroup sync.WaitGroup
+	plantGroup.Add(len(plant.Parts))
 
-	for i := 0; i < plant.size; i++ {
-		var x, y = cell.x + plant.x + leafTemplate.part[i].x, cell.y + plant.y + leafTemplate.part[i].y
-		setPixle(x, y, color{0, 255, 0}, pixels)
+	for p := 0; p < len(plant.Parts); p++ {
+		go plant.Parts[p].draw(pixels, &plantGroup)
 	}
-	wg.Done()
-}
-
-func (cell *cell) draw(pixels []byte, mainLoop *sync.WaitGroup) {
-	var wg sync.WaitGroup
-	wg.Add(len(cell.plants))
-
-	for p := 0; p < len(cell.plants); p++ {
-		go cell.plants[p].draw(cell, pixels, &wg)
-	}
-	wg.Wait()
+	plantGroup.Wait()
 	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
-	mainLoop.Done()
+
 }
+
+func (part *PlantPart) draw(pixels *[]byte, plantGroup *sync.WaitGroup) {
+	var partGroup sync.WaitGroup
+	partGroup.Add(len(part.Leafs))
+
+	//draw the body of the part
+
+	//drawe the all the leaves on the part
+	for p := 0; p < len(part.Leafs); p++ {
+		go part.Leafs[p].draw(pixels, &partGroup)
+	}
+	partGroup.Wait()
+	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
+	plantGroup.Done()
+}
+
+func (leaf *Leaf) draw(pixels *[]byte, partGroup *sync.WaitGroup) {
+
+	// for i := 0; i < leaf.Size; i++ {
+	// 	var x, y = leaf.X + leafShapes[leaf.Shape].point[i].X, leaf.Y + leafShapes[leaf.Shape].point[i].Y
+	// 	setPixle(x, y, template[i].color, *pixels)
+	// }
+	// partGroup.Done()
+}
+
+// func (cell *Cell) draw(pixels []byte, mainLoop *sync.WaitGroup) {
+
+// }
 
 //------------------------------------end draw functions
 
-func (plant *plant) update(density int, light, humidity *float32, wg *sync.WaitGroup) {
+func (plant *Plant) update() {
 
-	//determine the % of resources this plant gets based on size
-	share := float32(plant.size) / float32(density)
+	// //determine the % of resources this plant gets based on size
+	// share := float32(plant.Size) / float32(density)
 
-	//calculate the ammount of sunshime recived
-	sunShine := *light * float32(share) * plant.energy.ObtainingMultiplyer //not * 100 due to larger light value
+	// //calculate the ammount of sunshime recived
+	// sunShine := *light * float32(share) * plant.Energy.ObtainingMultiplyer //not * 100 due to larger light value
 
-	//calculate the ammount of water taken from the cell,
-	absorbedWater := share * *humidity * plant.water.ObtainingMultiplyer
+	// //calculate the ammount of water taken from the cell,
+	// absorbedWater := share * *humidity * plant.Water.ObtainingMultiplyer
 
-	//logic to apply the water to the plant
-	if (plant.water.ammount + absorbedWater) > float32(plant.water.maximum) {
-		//only take enough to max out plant water
-		*humidity -= (float32(plant.water.maximum) - plant.water.ammount)
-		plant.water.ammount = float32(plant.water.maximum)
-	} else {
-		*humidity -= absorbedWater
-		plant.water.ammount += absorbedWater
-	}
+	// //logic to apply the water to the plant
+	// if (plant.Water.Ammount + absorbedWater) > float32(plant.Water.Maximum) {
+	// 	//only take enough to max out plant water
+	// 	*humidity -= (float32(plant.Water.Maximum) - plant.Water.Ammount)
+	// 	plant.Water.Ammount = float32(plant.Water.Maximum)
+	// } else {
+	// 	*humidity -= absorbedWater
+	// 	plant.Water.Ammount += absorbedWater
+	// }
 
-	//logic to apply the sunshine and energy to the plant
-	if plant.water.ammount > sunShine {
-		if plant.energy.ammount+sunShine > float32(plant.energy.maximum) {
-			plant.water.ammount -= float32(plant.energy.maximum - int(plant.energy.ammount))
-			plant.energy.ammount = float32(plant.energy.maximum)
-		} else {
-			plant.energy.ammount += sunShine
-			plant.water.ammount -= sunShine
-		}
+	// //logic to apply the sunshine and energy to the plant
+	// if plant.Water.Ammount > sunShine {
+	// 	if plant.Energy.Ammount+sunShine > float32(plant.Energy.Maximum) {
+	// 		plant.Water.Ammount -= float32(plant.Energy.Maximum - int(plant.Energy.Ammount))
+	// 		plant.Energy.Ammount = float32(plant.Energy.Maximum)
+	// 	} else {
+	// 		plant.Energy.Ammount += sunShine
+	// 		plant.Water.Ammount -= sunShine
+	// 	}
 
-	} else {
-		plant.energy.ammount += plant.water.ammount
-		plant.water.ammount = 0
-	}
+	// } else {
+	// 	plant.Energy.Ammount += plant.Water.Ammount
+	// 	plant.Water.Ammount = 0
+	// }
 
-	//calculate plant upkeep for being alive// seed, flower, growth costs
-	plant.energy.ammount -= float32(plant.size)
-	if plant.energy.ammount <= 0 {
-		plant.size--
-		plant.energy.ammount = 0
-	} else if plant.energy.ammount >= float32(plant.growAt) {
-		plant.energy.ammount -= float32(plant.growAt)
-		plant.size++
-		plant.growAt = growthTemplate.growthStages[plant.size] //todo reference growthPattern
-	}
-	wg.Done()
+	// //calculate plant upkeep for being alive// seed, flower, growth costs
+	// plant.Energy.Ammount -= float32(plant.Size)
+	// if plant.Energy.Ammount <= 0 {
+	// 	plant.Size--
+	// 	plant.Energy.Ammount = 0
+	// } else if plant.Energy.Ammount >= float32(plant.GrowAt) {
+	// 	plant.Energy.Ammount -= float32(plant.GrowAt)
+	// 	plant.Size++
+	// 	plant.GrowAt = growthTemplate.growthStages[plant.Size] //todo reference growthPattern
+	// }
+	// wg.Done()
 }
 
-func (cell *cell) update(mainLoop *sync.WaitGroup) {
+func (cell *Cell) update(mainLoop *sync.WaitGroup) {
 
-	cell.calculateDesity()
-	cell.humidity += float32(getRandomInt(int(waterAmmount), 0)) //todo have sepearte water array for the cells
-	cell.sun.energy = float32(getRandomInt(int(lightAmmount), 0))
+	// cell.calculateDesity()
+	// cell.Humidity += float32(getRandomInt(int(waterAmmount), 0)) //todo have sepearte water array for the cells
+	// cell.Sun.Energy = float32(getRandomInt(int(lightAmmount), 0))
 
-	var wg sync.WaitGroup
-	wg.Add(len(cell.plants))
+	// var wg sync.WaitGroup
+	// wg.Add(len(cell.Plants))
 
-	for p := 0; p < len(cell.plants); p++ {
-		go cell.plants[p].update(cell.density, &cell.sun.energy, &cell.humidity, &wg)
-	}
-	wg.Wait()
-	//loop throughall to see if died//could have alive flag instead
-	for p := 0; p < len(cell.plants); p++ {
-		if cell.plants[p].size <= 0 {
-			if p == (len(cell.plants) - 1) {
-				cell.plants = append(cell.plants[:p], nil...)
-			} else {
-				cell.plants = append(cell.plants[:p], cell.plants[p+1:]...)
-			}
-			p--
-		}
-	}
-	mainLoop.Done()
+	// for p := 0; p < len(cell.Plants); p++ {
+	// 	go cell.Plants[p].update(cell.Density, &cell.Sun.Energy, &cell.Humidity, &wg)
+	// }
+	// wg.Wait()
+	// //loop throughall to see if died//could have alive flag instead
+	// for p := 0; p < len(cell.Plants); p++ {
+	// 	if cell.Plants[p].Size <= 0 {
+	// 		if p == (len(cell.Plants) - 1) {
+	// 			cell.Plants = append(cell.Plants[:p], nil...)
+	// 		} else {
+	// 			cell.Plants = append(cell.Plants[:p], cell.Plants[p+1:]...)
+	// 		}
+	// 		p--
+	// 	}
+	// }
+	// mainLoop.Done()
 }
 
 //------------------------------------end update functions
 
 //------------------------------------start window interaction functions
 
-func setPixle(x, y int, c color, pixels []byte) {
+func setPixle(x, y int, c Color, pixels []byte) {
 	index := (y*windowWidth + x) * 4
 
 	if index < len(pixels)-4 && index >= 0 {
-		pixels[index] = c.r
-		pixels[index+1] = c.g
-		pixels[index+2] = c.b
+		pixels[index] = c.R
+		pixels[index+1] = c.G
+		pixels[index+2] = c.B
 	}
 }
 
@@ -355,10 +412,10 @@ func setPixle(x, y int, c color, pixels []byte) {
 // 	return color
 // }
 
-func clearScreen(pixels []byte, color color) {
+func clearScreen(pixels *[]byte, color Color) {
 	for y := 0; y < windowHeight; y++ {
 		for x := 0; x < windowWidth; x++ {
-			setPixle(x, y, color, pixels)
+			setPixle(x, y, color, *pixels)
 		}
 	}
 }
@@ -411,9 +468,18 @@ func main() {
 
 	//------------------------------------end stl2 setup
 	//------------------------------------intitilize variables
-	var cells []cell
-	setUpCells(&cells)
+
+	leafShapes = make([][]Point, 2) //numbe leaf shapes
+	leafShapes[0] = []Point{}
+	leafShapes[1] = []Point{}
+
+	plant := getRandomPlant()
 	fmt.Println("Setup Done ... \nStart game loop ")
+
+	//code to save the data of the cells to a json file
+	file, _ := json.MarshalIndent(plant, "", "\t")
+	_ = ioutil.WriteFile("plant.json", file, 0644)
+
 	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
 	//------------------------------------Game loop
 	for {
@@ -424,21 +490,19 @@ func main() {
 			}
 		}
 
-		clearScreen(pixels, color{25, 12, 8})
+		clearScreen(&pixels, Color{25, 12, 8})
 
-		var mainLoop sync.WaitGroup
-		mainLoop.Add(len(cells) * 2)
+		// leaf := Leaf{}
+		// points := []Point{Point{Color{0,0,0}, Position{0,0}}}
+		// leaf.ShapeTemplate = &points
 
-		for c := range cells {
-			go cells[c].update(&mainLoop)
-			go cells[c].draw(pixels, &mainLoop)
-		}
-		mainLoop.Wait()
+		//plant.update()
+		//plant.draw(&pixels)
 
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
 		renderer.Present()
-		//sdl.Delay(1024) //wait 1 second
-		sdl.Delay(16)
+		sdl.Delay(2024) //wait 1 second
+		//sdl.Delay(16)
 	}
 }
