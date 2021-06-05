@@ -1,16 +1,16 @@
 {
 	"Index": 1,
-	"X": 5,
-	"Y": 3,
-	"Size": 6,
+	"X": 6,
+	"Y": 8,
+	"Mass": 8,
 	"Energy": {
 		"ObtainingMultiplyer": 1,
-		"Ammount": 95,
+		"Ammount": 73,
 		"Maximum": 1000
 	},
 	"Water": {
 		"ObtainingMultiplyer": 1,
-		"Ammount": 72,
+		"Ammount": 6,
 		"Maximum": 1000
 	},
 	"GrowAt": 1,

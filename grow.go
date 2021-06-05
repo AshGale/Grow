@@ -11,6 +11,9 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+const plantNameFile = "plant.json"
+const leafShapesFile = "leafShapes.json"
+
 const windowWidth, windowHeight int = 340, 340
 
 const cellSize int = 10
@@ -62,20 +65,11 @@ var growthTemplate = growth{1,
 	},
 }
 
-var up = direction{0, -1}
-var down = direction{0, +1}
-var left = direction{-1, 0}
-var right = direction{+1, 0}
-
 //var sides = []direction{up, down, left, right}
 
 //------------------------------------end Global variables and constants
 type Counter struct {
 	Count int
-}
-
-type direction struct {
-	x, y int
 }
 
 type Color struct {
@@ -116,7 +110,7 @@ type Leaf struct {
 }
 
 type Point struct {
-	color Color
+	Color Color
 	Position
 }
 
@@ -469,16 +463,16 @@ func main() {
 	//------------------------------------end stl2 setup
 	//------------------------------------intitilize variables
 
-	leafShapes = make([][]Point, 2) //numbe leaf shapes
-	leafShapes[0] = []Point{}
-	leafShapes[1] = []Point{}
+	//
+	var plant Plant
+	loadOrCreatePlant(&plant)
+	fmt.Printf("Your Plant: %+v\n", plant)
+	//
+	loadLeafShapes(&leafShapes)
+	fmt.Printf("Number of LeafShapes %v\n", len(leafShapes))
 
-	plant := getRandomPlant()
+	//
 	fmt.Println("Setup Done ... \nStart game loop ")
-
-	//code to save the data of the cells to a json file
-	file, _ := json.MarshalIndent(plant, "", "\t")
-	_ = ioutil.WriteFile("plant.json", file, 0644)
 
 	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
 	//------------------------------------Game loop
@@ -504,5 +498,34 @@ func main() {
 		renderer.Present()
 		sdl.Delay(2024) //wait 1 second
 		//sdl.Delay(16)
+	}
+}
+
+func loadLeafShapes(leafShapes *[][]Point) {
+
+	file, err := ioutil.ReadFile(leafShapesFile)
+	if err != nil {
+		fmt.Printf("You need this file :/ %v\n", leafShapesFile)
+		shapes := make([][]Point, 2)
+		shapes[0] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
+		shapes[1] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
+		file, _ := json.MarshalIndent(shapes, "", "\t")
+		_ = ioutil.WriteFile(leafShapesFile, file, 0644)
+	} else {
+		fmt.Printf("Loading %v...\n", leafShapesFile)
+		_ = json.Unmarshal([]byte(file), &leafShapes)
+	}
+}
+
+func loadOrCreatePlant(plant *Plant) {
+	file, err := ioutil.ReadFile(plantNameFile)
+	if err != nil {
+		fmt.Printf("No Plant found, creating %v\n", plantNameFile)
+		*plant = getRandomPlant()
+		file, _ := json.MarshalIndent(plant, "", "\t")
+		_ = ioutil.WriteFile(plantNameFile, file, 0644)
+	} else {
+		fmt.Printf("Loading %v...\n", plantNameFile)
+		_ = json.Unmarshal([]byte(file), &plant)
 	}
 }
