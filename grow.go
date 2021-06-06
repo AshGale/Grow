@@ -13,6 +13,7 @@ import (
 
 const plantNameFile = "plant.json"
 const leafShapesFile = "leafShapes.json"
+const partShapesFile = "partShapes.json"
 
 const windowWidth, windowHeight int = 340, 340
 
@@ -32,6 +33,7 @@ var plantIndexCounter Counter = Counter{0}
 var plantColor Color = Color{0, 128, 0}
 
 var leafShapes [][]Point
+var partShapes ShapeSet
 
 // var plantBodyTemplate = plantBody {1,
 // 	[]plantPart{
@@ -95,7 +97,8 @@ type Plant struct {
 type PlantPart struct {
 	Mass int //determined by shape
 	Position
-	Shape int //there will be a set of different shapes
+	End   Position //fill this in when section grows//based on last postion of shape number
+	Shape int      //there will be a set of different shapes
 	Requirement
 	//need variable to determine how much water it can transfer
 	Leafs []Leaf
@@ -114,13 +117,17 @@ type Point struct {
 	Position
 }
 
-/*
-	plant
-		plant part
-			leaves
-		roots
+type Shape struct {
+	Points []Point
+}
 
-*/
+type ShapeGroup struct {
+	Shapes []Shape
+}
+
+type ShapeSet struct {
+	Groups []ShapeGroup
+}
 
 type growth struct {
 	pattern      int
@@ -177,7 +184,49 @@ type Cell struct {
 
 //------------------------------------end structs
 
-//------------------------------------start random helper functions
+func loadPartShapes() {
+
+	file, err := ioutil.ReadFile(partShapesFile)
+	if err != nil {
+		fmt.Printf("You need this file :/ %v\n", partShapesFile)
+		createPlantShapes(&partShapes, 20)
+		file, _ := json.MarshalIndent(partShapes, "", "\t")
+		_ = ioutil.WriteFile(partShapesFile, file, 0644)
+	} else {
+		fmt.Printf("Loading %v...\n", partShapesFile)
+		_ = json.Unmarshal([]byte(file), &partShapes)
+	}
+}
+func loadLeafShapes(leafShapes *[][]Point) {
+
+	file, err := ioutil.ReadFile(leafShapesFile)
+	if err != nil {
+		fmt.Printf("You need this file :/ %v\n", leafShapesFile)
+		shapes := make([][]Point, 2)
+		shapes[0] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
+		shapes[1] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
+		file, _ := json.MarshalIndent(shapes, "", "\t")
+		_ = ioutil.WriteFile(leafShapesFile, file, 0644)
+	} else {
+		fmt.Printf("Loading %v...\n", leafShapesFile)
+		_ = json.Unmarshal([]byte(file), &leafShapes)
+	}
+}
+
+func loadOrCreatePlant(plant *Plant) {
+	file, err := ioutil.ReadFile(plantNameFile)
+	if err != nil {
+		fmt.Printf("No Plant found, creating %v\n", plantNameFile)
+		*plant = getRandomPlant()
+		file, _ := json.MarshalIndent(plant, "", "\t")
+		_ = ioutil.WriteFile(plantNameFile, file, 0644)
+	} else {
+		fmt.Printf("Loading %v...\n", plantNameFile)
+		_ = json.Unmarshal([]byte(file), &plant)
+	}
+}
+
+//------------------------------------end file io functions
 
 func setUpCells(cells *[]Cell) {
 	var wg sync.WaitGroup
@@ -290,11 +339,13 @@ func (part *PlantPart) draw(pixels *[]byte, plantGroup *sync.WaitGroup) {
 
 func (leaf *Leaf) draw(pixels *[]byte, partGroup *sync.WaitGroup) {
 
+	// might be lots of overlap if each stage of the leaf is a full set of points ?
+
 	// for i := 0; i < leaf.Size; i++ {
 	// 	var x, y = leaf.X + leafShapes[leaf.Shape].point[i].X, leaf.Y + leafShapes[leaf.Shape].point[i].Y
 	// 	setPixle(x, y, template[i].color, *pixels)
 	// }
-	// partGroup.Done()
+	partGroup.Done()
 }
 
 // func (cell *Cell) draw(pixels []byte, mainLoop *sync.WaitGroup) {
@@ -471,6 +522,9 @@ func main() {
 	loadLeafShapes(&leafShapes)
 	fmt.Printf("Number of LeafShapes %v\n", len(leafShapes))
 
+	loadPartShapes()
+	fmt.Printf("Number of PartShapes %v\n", len(partShapes.Groups))
+
 	//
 	fmt.Println("Setup Done ... \nStart game loop ")
 
@@ -486,10 +540,6 @@ func main() {
 
 		clearScreen(&pixels, Color{25, 12, 8})
 
-		// leaf := Leaf{}
-		// points := []Point{Point{Color{0,0,0}, Position{0,0}}}
-		// leaf.ShapeTemplate = &points
-
 		//plant.update()
 		//plant.draw(&pixels)
 
@@ -501,31 +551,39 @@ func main() {
 	}
 }
 
-func loadLeafShapes(leafShapes *[][]Point) {
+func createPlantShapes(set *ShapeSet, length int) {
+	var up = Position{0, -1}
+	var upRight = Position{+1, -1}
+	var right = Position{+1, 0}
+	var downRight = Position{+1, +1}
+	var down = Position{0, +1}
+	var downLeft = Position{-1, +1}
+	var left = Position{-1, 0}
+	var upLeft = Position{-1, -1}
 
-	file, err := ioutil.ReadFile(leafShapesFile)
-	if err != nil {
-		fmt.Printf("You need this file :/ %v\n", leafShapesFile)
-		shapes := make([][]Point, 2)
-		shapes[0] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
-		shapes[1] = []Point{{Color{0, 0, 0}, Position{0, 0}}}
-		file, _ := json.MarshalIndent(shapes, "", "\t")
-		_ = ioutil.WriteFile(leafShapesFile, file, 0644)
-	} else {
-		fmt.Printf("Loading %v...\n", leafShapesFile)
-		_ = json.Unmarshal([]byte(file), &leafShapes)
-	}
-}
+	directions := []Position{up, upRight, right, downRight, down, downLeft, left, upLeft}
+	numberDirections := len(directions)
 
-func loadOrCreatePlant(plant *Plant) {
-	file, err := ioutil.ReadFile(plantNameFile)
-	if err != nil {
-		fmt.Printf("No Plant found, creating %v\n", plantNameFile)
-		*plant = getRandomPlant()
-		file, _ := json.MarshalIndent(plant, "", "\t")
-		_ = ioutil.WriteFile(plantNameFile, file, 0644)
-	} else {
-		fmt.Printf("Loading %v...\n", plantNameFile)
-		_ = json.Unmarshal([]byte(file), &plant)
+	*set = ShapeSet{} //make([]ShapeGroup, length-2)
+	set.Groups = make([]ShapeGroup, length)
+	for g := 2; g < len(set.Groups); g++ {
+		set.Groups[g].Shapes = make([]Shape, numberDirections)
 	}
+
+	for l := 2; l < length; l++ { //for the ammount of points in a shape
+
+		for d := 0; d < numberDirections; d++ { //8, for each direct
+			//fmt.Printf("l=%v d=%v\n", l, d)
+			var shape Shape
+			for s := 1; s <= l; s++ {
+				point := Point{Color{0, byte(200 - l), 0}, Position{s * directions[d].X, s * directions[d].Y}}
+				//fmt.Printf("\tPoint: %v -> direction %v s=%v\n", point, directions[d], s)
+				shape.Points = append(shape.Points, point)
+			}
+			fmt.Printf("%v\n", shape)
+
+			set.Groups[l].Shapes[d] = shape
+		}
+	}
+	//fmt.Printf("%+v\n", shapes)
 }
