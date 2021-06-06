@@ -1,18 +1,227 @@
 {
 	"Index": 1,
-	"X": 6,
-	"Y": 8,
-	"Mass": 8,
+	"X": 200,
+	"Y": 200,
+	"Mass": 17,
 	"Energy": {
 		"ObtainingMultiplyer": 1,
-		"Ammount": 73,
+		"Ammount": 16,
 		"Maximum": 1000
 	},
 	"Water": {
 		"ObtainingMultiplyer": 1,
-		"Ammount": 6,
+		"Ammount": 16,
 		"Maximum": 1000
 	},
 	"GrowAt": 1,
-	"Parts": []
+	"Parts": [
+		{
+			"Mass": 17,
+			"X": 0,
+			"Y": 0,
+			"End": {
+				"X": 17,
+				"Y": -17
+			},
+			"Shape": 1,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 16,
+			"X": 17,
+			"Y": -17,
+			"End": {
+				"X": 33,
+				"Y": -33
+			},
+			"Shape": 1,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 15,
+			"X": 33,
+			"Y": -33,
+			"End": {
+				"X": 33,
+				"Y": -48
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 14,
+			"X": 33,
+			"Y": -48,
+			"End": {
+				"X": 33,
+				"Y": -62
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 13,
+			"X": 33,
+			"Y": -62,
+			"End": {
+				"X": 33,
+				"Y": -75
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 12,
+			"X": 33,
+			"Y": -75,
+			"End": {
+				"X": 33,
+				"Y": -87
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 11,
+			"X": 33,
+			"Y": -87,
+			"End": {
+				"X": 33,
+				"Y": -98
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 10,
+			"X": 33,
+			"Y": -98,
+			"End": {
+				"X": 33,
+				"Y": -108
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 9,
+			"X": 33,
+			"Y": -108,
+			"End": {
+				"X": 33,
+				"Y": -117
+			},
+			"Shape": 0,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 8,
+			"X": 33,
+			"Y": -117,
+			"End": {
+				"X": 41,
+				"Y": -125
+			},
+			"Shape": 1,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 7,
+			"X": 41,
+			"Y": -125,
+			"End": {
+				"X": 48,
+				"Y": -125
+			},
+			"Shape": 2,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 6,
+			"X": 48,
+			"Y": -125,
+			"End": {
+				"X": 54,
+				"Y": -119
+			},
+			"Shape": 3,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 5,
+			"X": 54,
+			"Y": -119,
+			"End": {
+				"X": 54,
+				"Y": -114
+			},
+			"Shape": 4,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 4,
+			"X": 54,
+			"Y": -114,
+			"End": {
+				"X": 58,
+				"Y": -110
+			},
+			"Shape": 3,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 3,
+			"X": 58,
+			"Y": -110,
+			"End": {
+				"X": 61,
+				"Y": -107
+			},
+			"Shape": 3,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		},
+		{
+			"Mass": 2,
+			"X": 61,
+			"Y": -107,
+			"End": {
+				"X": 63,
+				"Y": -105
+			},
+			"Shape": 3,
+			"Waterneeded": 0,
+			"EnergyNeeded": 0,
+			"Leafs": []
+		}
+	]
 }

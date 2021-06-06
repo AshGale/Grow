@@ -15,7 +15,7 @@ const plantNameFile = "plant.json"
 const leafShapesFile = "leafShapes.json"
 const partShapesFile = "partShapes.json"
 
-const windowWidth, windowHeight int = 340, 340
+const windowWidth, windowHeight int = 400, 400
 
 const cellSize int = 10
 const cellsX int = 32
@@ -27,6 +27,17 @@ const plantStantingEnergy int = 100
 const plantMaxWater int = 1000
 const plantMaxEnergy int = 1000
 const cellStartingPlants = 10
+
+var up = Position{0, -1}
+var upRight = Position{+1, -1}
+var right = Position{+1, 0}
+var downRight = Position{+1, +1}
+var down = Position{0, +1}
+var downLeft = Position{-1, +1}
+var left = Position{-1, 0}
+var upLeft = Position{-1, -1}
+
+var directions = []Position{up, upRight, right, downRight, down, downLeft, left, upLeft}
 
 //export this to a json file at some stage, or csv ect
 var plantIndexCounter Counter = Counter{0}
@@ -226,6 +237,34 @@ func loadOrCreatePlant(plant *Plant) {
 	}
 }
 
+func createPlantShapes(set *ShapeSet, length int) {
+
+	numberDirections := len(directions)
+
+	*set = ShapeSet{} //make([]ShapeGroup, length-2)
+	set.Groups = make([]ShapeGroup, length)
+	for g := 2; g < len(set.Groups); g++ {
+		set.Groups[g].Shapes = make([]Shape, numberDirections)
+	}
+
+	for l := 2; l < length; l++ { //for the ammount of points in a shape
+
+		for d := 0; d < numberDirections; d++ { //8, for each direct
+			//fmt.Printf("l=%v d=%v\n", l, d)
+			var shape Shape
+			for s := 1; s <= l; s++ {
+				point := Point{Color{0, byte(200 - l), 0}, Position{s * directions[d].X, s * directions[d].Y}}
+				//fmt.Printf("\tPoint: %v -> direction %v s=%v\n", point, directions[d], s)
+				shape.Points = append(shape.Points, point)
+			}
+			//fmt.Printf("%v\n", shape)
+
+			set.Groups[l].Shapes[d] = shape
+		}
+	}
+	//fmt.Printf("%+v\n", shapes)
+}
+
 //------------------------------------end file io functions
 
 func setUpCells(cells *[]Cell) {
@@ -271,11 +310,134 @@ func getRandomVegetaion() Vegetation {
 
 func getRandomPlant() Plant {
 	//NOTE not threadsafe due to index tracker
-	randomSize := getRandomInt(15, 1)
+	randomSize := getRandomInt(20, 8)
 	water := Water{1, float32(getRandomInt(plantStatingWater, 0)), plantMaxWater}
 	energy := Energy{1, float32(getRandomInt(plantStantingEnergy, 0)), plantMaxEnergy}
-	return Plant{plantIndexCounter.next(), Position{getRandomInt(cellSize-1, 0), getRandomInt(cellSize-1, 0)},
-		randomSize, energy, water, 1, []PlantPart{}}
+	plantParts := getRandomPlantParts(randomSize)
+	//randomSize = sumOfPlantParts
+
+	return Plant{plantIndexCounter.next(), Position{200, 200},
+		randomSize, energy, water, 1, plantParts}
+}
+
+func getRandomPlantParts(numberOfParts int) []PlantPart {
+
+	fmt.Printf("parts:%v start%v\n", numberOfParts)
+	parts := make([]PlantPart, numberOfParts-1) //smallest part mass 2
+	for i := 0; i < numberOfParts-1; i++ {
+		//partShapes.Groups[i].Shapes[2] // group is size, and shape is direction
+
+		//for now just make each part have only 1 direct child
+		// switch getRandomInt(3, 0) {
+		// 	case 0:
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// break
+		// 	case 1:
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// break
+		// 	case 2:
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// parts = append(parts, getRandomPlantPart(numberOfParts-i, startingPoint))
+		// break
+		// }
+
+		if i == 0 {
+			parts[i] = getRandomPlantPart(numberOfParts-i, Position{0, 0}, getRandomUp())
+		} else {
+			parts[i] = getRandomPlantPart(numberOfParts-i, parts[i-1].End, getRandomAjacent(parts[i-1].Shape))
+		}
+
+		//need to figure out how to determine orientation of plant part
+
+	}
+	return parts
+}
+
+func getRandomPlantPart(mass int, start Position, direction int) PlantPart {
+	fmt.Printf("mass:%v start%v direction:%v  -> ", mass, start, direction)
+	shape := partShapes.Groups[mass].Shapes[direction]
+	end := shape.Points[len(shape.Points)-1].Position
+	end.X += start.X
+	end.Y += start.Y
+	fmt.Printf("shape:%v end%v\n", shape, end)
+
+	return PlantPart{mass, start, end, direction, Requirement{0, 0}, []Leaf{}}
+}
+
+//function to get ajacent to provided index. supports min max
+func getRandomAjacent(index int) int {
+
+	switch getRandomInt(3, 0) {
+	case 0:
+		if index == 0 {
+			return 7
+		} else {
+			return index - 1
+		}
+	case 1:
+		return index
+	case 2:
+		if index == 7 {
+			return 0
+		} else {
+			return index + 1
+		}
+	}
+	return index
+}
+
+func getRandomUp() int {
+
+	switch getRandomInt(3, 0) {
+	case 0:
+		return 7
+	case 1:
+		return 0
+	case 2:
+		return 1
+	}
+	return 0
+}
+
+func getRandomRight() int {
+
+	switch getRandomInt(3, 0) {
+	case 0:
+		return 1
+	case 1:
+		return 2
+	case 2:
+		return 3
+	}
+	return 0
+}
+
+func getRandomDown() int {
+
+	switch getRandomInt(3, 0) {
+	case 0:
+		return 3
+	case 1:
+		return 4
+	case 2:
+		return 5
+	}
+	return 0
+}
+
+func getRandomLeft() int {
+
+	switch getRandomInt(3, 0) {
+	case 0:
+		return 5
+	case 1:
+		return 6
+	case 2:
+		return 7
+	}
+	return 0
 }
 
 func getRandomInt(max, min int) int {
@@ -310,23 +472,36 @@ func (cell *Cell) calculateDesity() {
 
 //------------------------------------end calculation functions
 
-func (plant *Plant) draw(cell *Cell, pixels *[]byte) {
+func (plant *Plant) draw(pixels *[]byte) {
 	var plantGroup sync.WaitGroup
 	plantGroup.Add(len(plant.Parts))
 
 	for p := 0; p < len(plant.Parts); p++ {
-		go plant.Parts[p].draw(pixels, &plantGroup)
+		plant.Parts[p].draw(plant.Position, pixels, &plantGroup) //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< add back in go
 	}
 	plantGroup.Wait()
 	//fmt.Printf(" - vegetaion %v %v\n", cell.density, cell.plants) //pring status of the plants
 
 }
 
-func (part *PlantPart) draw(pixels *[]byte, plantGroup *sync.WaitGroup) {
+func (part *PlantPart) draw(position Position, pixels *[]byte, plantGroup *sync.WaitGroup) {
 	var partGroup sync.WaitGroup
 	partGroup.Add(len(part.Leafs))
 
 	//draw the body of the part
+	//use this to draw the part partShapes.Groups[i].Shapes[2]
+	//fmt.Printf("%+v\n", partShapes.Groups[part.Mass].Shapes[part.Shape])
+
+	points := partShapes.Groups[part.Mass].Shapes[part.Shape].Points
+	fmt.Printf("basePos:%v partPos%v first:%v last%v end%v\n", position, part.Position, points[0].Position, points[len(points)-1].Position, part.End)
+	for i := 0; i < len(points); i++ {
+		fmt.Printf(" - %v, %v\n", position.X+part.X+points[i].X, position.Y+part.Y+points[i].Y)
+		setPixle(position.X+part.X+points[i].X, position.Y+part.Y+points[i].Y, points[i].Color, *pixels)
+	}
+
+	//end position is not the postion of the previous part, (dosen't factor postion of part)
+
+	//partShapes.Groups[part.Mass].Shapes[part.Shape]
 
 	//drawe the all the leaves on the part
 	for p := 0; p < len(part.Leafs); p++ {
@@ -513,19 +688,16 @@ func main() {
 
 	//------------------------------------end stl2 setup
 	//------------------------------------intitilize variables
-
-	//
-	var plant Plant
-	loadOrCreatePlant(&plant)
-	fmt.Printf("Your Plant: %+v\n", plant)
-	//
 	loadLeafShapes(&leafShapes)
 	fmt.Printf("Number of LeafShapes %v\n", len(leafShapes))
 
 	loadPartShapes()
 	fmt.Printf("Number of PartShapes %v\n", len(partShapes.Groups))
 
-	//
+	var plant Plant
+	loadOrCreatePlant(&plant)
+	//fmt.Printf("Your Plant: %+v\n", plant)
+
 	fmt.Println("Setup Done ... \nStart game loop ")
 
 	//cd grow && doskey /listsize=0 && go build -o grow.exe && grow.exe
@@ -541,7 +713,7 @@ func main() {
 		clearScreen(&pixels, Color{25, 12, 8})
 
 		//plant.update()
-		//plant.draw(&pixels)
+		plant.draw(&pixels)
 
 		texture.Update(nil, pixels, windowWidth*4)
 		renderer.Copy(texture, nil, nil)
@@ -549,41 +721,4 @@ func main() {
 		sdl.Delay(2024) //wait 1 second
 		//sdl.Delay(16)
 	}
-}
-
-func createPlantShapes(set *ShapeSet, length int) {
-	var up = Position{0, -1}
-	var upRight = Position{+1, -1}
-	var right = Position{+1, 0}
-	var downRight = Position{+1, +1}
-	var down = Position{0, +1}
-	var downLeft = Position{-1, +1}
-	var left = Position{-1, 0}
-	var upLeft = Position{-1, -1}
-
-	directions := []Position{up, upRight, right, downRight, down, downLeft, left, upLeft}
-	numberDirections := len(directions)
-
-	*set = ShapeSet{} //make([]ShapeGroup, length-2)
-	set.Groups = make([]ShapeGroup, length)
-	for g := 2; g < len(set.Groups); g++ {
-		set.Groups[g].Shapes = make([]Shape, numberDirections)
-	}
-
-	for l := 2; l < length; l++ { //for the ammount of points in a shape
-
-		for d := 0; d < numberDirections; d++ { //8, for each direct
-			//fmt.Printf("l=%v d=%v\n", l, d)
-			var shape Shape
-			for s := 1; s <= l; s++ {
-				point := Point{Color{0, byte(200 - l), 0}, Position{s * directions[d].X, s * directions[d].Y}}
-				//fmt.Printf("\tPoint: %v -> direction %v s=%v\n", point, directions[d], s)
-				shape.Points = append(shape.Points, point)
-			}
-			fmt.Printf("%v\n", shape)
-
-			set.Groups[l].Shapes[d] = shape
-		}
-	}
-	//fmt.Printf("%+v\n", shapes)
 }
